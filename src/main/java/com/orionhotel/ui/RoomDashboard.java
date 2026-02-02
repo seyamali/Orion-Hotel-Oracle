@@ -2,22 +2,23 @@ package com.orionhotel.ui;
 
 import com.orionhotel.controller.RoomController;
 import com.orionhotel.model.Room;
-import javafx.application.Application;
-import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
-import javafx.stage.Stage;
 import java.util.List;
 
-public class RoomDashboard extends Application {
+public class RoomDashboard {
     private RoomController controller = new RoomController();
+    private VBox rootPane;
 
-    @Override
-    public void start(Stage primaryStage) {
+    public RoomDashboard() {
+        initializeUI();
+    }
+
+    private void initializeUI() {
         // Initialize some sample rooms
         controller.addRoom(new Room(101, "Single"));
         controller.addRoom(new Room(102, "Double"));
@@ -26,8 +27,8 @@ public class RoomDashboard extends Application {
         controller.addRoom(new Room(202, "Double"));
 
         // Create UI
-        VBox root = new VBox(10);
-        root.setPadding(new javafx.geometry.Insets(10));
+        rootPane = new VBox(10);
+        rootPane.setPadding(new javafx.geometry.Insets(10));
 
         // For each room, create a HBox with info and buttons
         List<Room> allRooms = controller.getAllRooms();
@@ -65,13 +66,12 @@ public class RoomDashboard extends Application {
             });
 
             roomBox.getChildren().addAll(number, type, status, book, checkout, clean, maintenance);
-            root.getChildren().add(roomBox);
+            rootPane.getChildren().add(roomBox);
         }
+    }
 
-        Scene scene = new Scene(root, 800, 600);
-        primaryStage.setTitle("Room Dashboard - Orion Hotel Oracle");
-        primaryStage.setScene(scene);
-        primaryStage.show();
+    public VBox getRootPane() {
+        return rootPane;
     }
 
     private void updateStatus(Rectangle status, Room room) {
@@ -84,9 +84,5 @@ public class RoomDashboard extends Application {
         } else {
             status.setFill(Color.GREEN);
         }
-    }
-
-    public static void main(String[] args) {
-        launch(args);
     }
 }

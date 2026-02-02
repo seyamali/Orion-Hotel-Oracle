@@ -1,9 +1,9 @@
 package com.orionhotel;
 
-import com.orionhotel.ui.RoomDashboard;
+import com.orionhotel.ui.MainMenu;
 
 public class Main {
     public static void main(String[] args) {
-        RoomDashboard.main(args);
+        MainMenu.main(args);
     }
 }
