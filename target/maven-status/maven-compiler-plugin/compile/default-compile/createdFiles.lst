@@ -1,0 +1,12 @@
+com\orionhotel\ui\RoomDashboard.class
+com\orionhotel\Main.class
+com\orionhotel\ui\InventoryUI.class
+com\orionhotel\model\InventoryItem.class
+com\orionhotel\controller\BookingController.class
+com\orionhotel\utils\FileHandler.class
+com\orionhotel\model\Guest.class
+com\orionhotel\model\Room.class
+com\orionhotel\controller\InventoryController.class
+com\orionhotel\controller\RoomController.class
+com\orionhotel\utils\ValidationUtils.class
+com\orionhotel\ui\BookingForm.class
