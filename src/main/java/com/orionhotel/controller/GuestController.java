@@ -1,184 +1,202 @@
 package com.orionhotel.controller;
 
+import com.orionhotel.database.DatabaseConnection;
 import com.orionhotel.model.Guest;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class GuestController {
 
-    private static final String DATA_FILE = "guest_db.ser";
-
-    // Past stay record for history
-    public static class PastStay implements java.io.Serializable {
-        private static final long serialVersionUID = 1L;
-        public final int guestId;
-        public final String guestName;
-        public final int roomNumber;
-        public final LocalDate checkInDate;
-        public final LocalDate checkOutDate;
-
-        public PastStay(int guestId, String guestName, int roomNumber, LocalDate checkInDate, LocalDate checkOutDate) {
-            this.guestId = guestId;
-            this.guestName = guestName;
-            this.roomNumber = roomNumber;
-            this.checkInDate = checkInDate;
-            this.checkOutDate = checkOutDate;
-        }
-    }
-
-    private List<Guest> guests = new ArrayList<>();
-    private List<PastStay> pastStays = new ArrayList<>();
     private RoomController roomController;
 
     public GuestController(RoomController roomController) {
         this.roomController = roomController;
-        loadData();
     }
 
-    // Add new guest
     public void addGuest(Guest guest) {
-        guests.add(guest);
-        saveData();
+        String sql = "INSERT INTO guests (full_name, phone, email, id_number, address, status) VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, guest.getFullName());
+            pstmt.setString(2, guest.getPhoneNumber());
+            pstmt.setString(3, guest.getEmail());
+            pstmt.setString(4, guest.getNationalId());
+            pstmt.setString(5, guest.getAddress());
+            pstmt.setString(6, Guest.GuestStatus.REGISTERED.name());
+
+            pstmt.executeUpdate();
+            System.out.println("Guest added to DB: " + guest.getFullName());
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
-    // Get all guests
     public List<Guest> getAllGuests() {
-        return new ArrayList<>(guests);
+        List<Guest> list = new ArrayList<>();
+        String sql = "SELECT * FROM guests";
+        try (Connection conn = DatabaseConnection.getConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                list.add(mapResultSetToGuest(rs));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 
-    // Search guests by name or phone
     public List<Guest> searchGuests(String query) {
-        String lowerQuery = query.toLowerCase();
-        return guests.stream()
-                .filter(g -> g.getFullName().toLowerCase().contains(lowerQuery) ||
-                             g.getPhoneNumber().contains(lowerQuery))
-                .collect(Collectors.toList());
+        List<Guest> list = new ArrayList<>();
+        String sql = "SELECT * FROM guests WHERE LOWER(full_name) LIKE ? OR phone LIKE ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            String searchPattern = "%" + query.toLowerCase() + "%";
+            pstmt.setString(1, searchPattern);
+            pstmt.setString(2, searchPattern);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToGuest(rs));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 
-    // Filter by status
     public List<Guest> getGuestsByStatus(Guest.GuestStatus status) {
-        return guests.stream()
-                .filter(g -> g.getStatus() == status)
-                .collect(Collectors.toList());
+        List<Guest> list = new ArrayList<>();
+        String sql = "SELECT * FROM guests WHERE status = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, status.name());
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(mapResultSetToGuest(rs));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return list;
     }
 
-    // Check-in guest
     public boolean checkInGuest(int guestId, int roomNumber) {
-        Guest guest = findGuestById(guestId);
-        if (guest != null && guest.getStatus() == Guest.GuestStatus.REGISTERED) {
-            if (roomController.bookRoom(roomNumber)) {
-                guest.setStatus(Guest.GuestStatus.CHECKED_IN);
-                guest.setRoomNumber(roomNumber);
-                guest.setCheckInDate(LocalDate.now());
-                saveData();
-                return true;
+        // 1. Check if guest is valid and registered
+        // 2. Book room via RoomController (need to update RoomController to SQL first
+        // for transactional safety, but currently just calling method)
+        if (roomController.bookRoom(roomNumber)) {
+            String sql = "UPDATE guests SET status = 'CHECKED_IN', room_number = ?, check_in_date = ? WHERE guest_id = ?";
+            try (Connection conn = DatabaseConnection.getConnection();
+                    PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+                pstmt.setInt(1, roomNumber);
+                pstmt.setDate(2, java.sql.Date.valueOf(LocalDate.now())); // Current date
+                pstmt.setInt(3, guestId);
+
+                int rows = pstmt.executeUpdate();
+                return rows > 0;
+
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
         }
         return false;
     }
 
-    // Check-out guest
     public boolean checkOutGuest(int guestId) {
+        // Get guest to find room number
         Guest guest = findGuestById(guestId);
         if (guest != null && guest.getStatus() == Guest.GuestStatus.CHECKED_IN) {
-            guest.setStatus(Guest.GuestStatus.CHECKED_OUT);
-            guest.setCheckOutDate(LocalDate.now());
-            // Record past stay
-            pastStays.add(new PastStay(guest.getGuestId(), guest.getFullName(), guest.getRoomNumber(),
-                    guest.getCheckInDate(), guest.getCheckOutDate()));
+
             // Checkout room
-            roomController.checkoutRoom(guest.getRoomNumber());
-            guest.setRoomNumber(null); // Clear room assignment
-            saveData();
-            return true;
+            if (guest.getRoomNumber() != null) {
+                roomController.checkoutRoom(guest.getRoomNumber());
+            }
+
+            // Update guest status
+            String sql = "UPDATE guests SET status = 'CHECKED_OUT', check_out_date = ?, room_number = NULL WHERE guest_id = ?";
+            try (Connection conn = DatabaseConnection.getConnection();
+                    PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+                pstmt.setDate(1, java.sql.Date.valueOf(LocalDate.now()));
+                pstmt.setInt(2, guestId);
+
+                int rows = pstmt.executeUpdate();
+                return rows > 0;
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
         return false;
     }
 
-    // Get guest history
-    public List<PastStay> getGuestHistory(int guestId) {
-        return pastStays.stream()
-                .filter(s -> s.guestId == guestId)
-                .collect(Collectors.toList());
-    }
-
-    // Reports
-    public List<Guest> getCheckedInGuests() {
-        return getGuestsByStatus(Guest.GuestStatus.CHECKED_IN);
-    }
-
-    public List<Guest> getTodaysArrivals() {
-        LocalDate today = LocalDate.now();
-        return guests.stream()
-                .filter(g -> g.getCheckInDate() != null && g.getCheckInDate().equals(today))
-                .collect(Collectors.toList());
-    }
-
-    public List<Guest> getTodaysDepartures() {
-        LocalDate today = LocalDate.now();
-        return guests.stream()
-                .filter(g -> g.getCheckOutDate() != null && g.getCheckOutDate().equals(today))
-                .collect(Collectors.toList());
-    }
-
-    // Frequent guests (most stays)
-    public List<GuestFrequency> getFrequentGuests() {
-        java.util.Map<Integer, Integer> stayCounts = new java.util.HashMap<>();
-        for (PastStay stay : pastStays) {
-            stayCounts.put(stay.guestId, stayCounts.getOrDefault(stay.guestId, 0) + 1);
+    // Find Guest By ID helper
+    public Guest findGuestById(int guestId) {
+        String sql = "SELECT * FROM guests WHERE guest_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, guestId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToGuest(rs);
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        List<GuestFrequency> frequencies = new ArrayList<>();
-        for (Guest guest : guests) {
-            int count = stayCounts.getOrDefault(guest.getGuestId(), 0);
-            frequencies.add(new GuestFrequency(guest, count));
+        return null;
+    }
+
+    private Guest mapResultSetToGuest(ResultSet rs) throws SQLException {
+        Guest g = new Guest();
+        g.setGuestId(rs.getInt("guest_id"));
+        g.setFullName(rs.getString("full_name"));
+        g.setPhoneNumber(rs.getString("phone"));
+        g.setEmail(rs.getString("email"));
+        g.setNationalId(rs.getString("id_number"));
+        g.setAddress(rs.getString("address"));
+
+        int roomNum = rs.getInt("room_number");
+        if (!rs.wasNull()) {
+            g.setRoomNumber(roomNum);
         }
-        frequencies.sort((a, b) -> Integer.compare(b.stayCount, a.stayCount));
-        return frequencies;
-    }
 
-    public static class GuestFrequency {
-        public final Guest guest;
-        public final int stayCount;
+        java.sql.Date checkIn = rs.getDate("check_in_date");
+        if (checkIn != null)
+            g.setCheckInDate(checkIn.toLocalDate());
 
-        public GuestFrequency(Guest guest, int stayCount) {
-            this.guest = guest;
-            this.stayCount = stayCount;
-        }
-    }
+        java.sql.Date checkOut = rs.getDate("check_out_date");
+        if (checkOut != null)
+            g.setCheckOutDate(checkOut.toLocalDate());
 
-    private Guest findGuestById(int guestId) {
-        return guests.stream()
-                .filter(g -> g.getGuestId() == guestId)
-                .findFirst()
-                .orElse(null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private void loadData() {
-        java.io.File file = new java.io.File(DATA_FILE);
-        if (file.exists()) {
-            try (java.io.ObjectInputStream ois = new java.io.ObjectInputStream(new java.io.FileInputStream(file))) {
-                guests = (List<Guest>) ois.readObject();
-                pastStays = (List<PastStay>) ois.readObject();
-                System.out.println("Guest data loaded successfully from " + DATA_FILE);
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println("Failed to load guest data: " + e.getMessage());
+        String statusStr = rs.getString("status");
+        if (statusStr != null) {
+            try {
+                g.setStatus(Guest.GuestStatus.valueOf(statusStr));
+            } catch (IllegalArgumentException e) {
+                g.setStatus(Guest.GuestStatus.REGISTERED);
             }
         } else {
-            System.out.println("No existing guest data file found. Starting fresh.");
+            g.setStatus(Guest.GuestStatus.REGISTERED);
         }
-    }
 
-    private void saveData() {
-        try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(new java.io.FileOutputStream(DATA_FILE))) {
-            oos.writeObject(guests);
-            oos.writeObject(pastStays);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("Failed to save guest data: " + e.getMessage());
-        }
+        return g;
     }
 }

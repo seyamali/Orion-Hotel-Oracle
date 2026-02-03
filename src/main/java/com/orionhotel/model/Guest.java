@@ -30,56 +30,102 @@ public class Guest implements java.io.Serializable {
         this.status = GuestStatus.REGISTERED;
     }
 
+    public Guest() {
+    }
+
     // Getters and Setters
-    public int getGuestId() { return guestId; }
-    public void setGuestId(int guestId) { this.guestId = guestId; }
+    public int getGuestId() {
+        return guestId;
+    }
 
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
+    public void setGuestId(int guestId) {
+        this.guestId = guestId;
+    }
 
-    public String getPhoneNumber() { return phoneNumber; }
-    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+    public String getFullName() {
+        return fullName;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
 
-    public String getNationalId() { return nationalId; }
-    public void setNationalId(String nationalId) { this.nationalId = nationalId; }
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
 
-    public String getAddress() { return address; }
-    public void setAddress(String address) { this.address = address; }
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
 
-    public Integer getRoomNumber() { return roomNumber; }
-    public void setRoomNumber(Integer roomNumber) { this.roomNumber = roomNumber; }
+    public String getEmail() {
+        return email;
+    }
 
-    public LocalDate getCheckInDate() { return checkInDate; }
-    public void setCheckInDate(LocalDate checkInDate) { this.checkInDate = checkInDate; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public LocalDate getCheckOutDate() { return checkOutDate; }
-    public void setCheckOutDate(LocalDate checkOutDate) { this.checkOutDate = checkOutDate; }
+    public String getNationalId() {
+        return nationalId;
+    }
 
-    public GuestStatus getStatus() { return status; }
-    public void setStatus(GuestStatus status) { this.status = status; }
+    public void setNationalId(String nationalId) {
+        this.nationalId = nationalId;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public Integer getRoomNumber() {
+        return roomNumber;
+    }
+
+    public void setRoomNumber(Integer roomNumber) {
+        this.roomNumber = roomNumber;
+    }
+
+    public LocalDate getCheckInDate() {
+        return checkInDate;
+    }
+
+    public void setCheckInDate(LocalDate checkInDate) {
+        this.checkInDate = checkInDate;
+    }
+
+    public LocalDate getCheckOutDate() {
+        return checkOutDate;
+    }
+
+    public void setCheckOutDate(LocalDate checkOutDate) {
+        this.checkOutDate = checkOutDate;
+    }
+
+    public GuestStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(GuestStatus status) {
+        this.status = status;
+    }
 
     // Utility method to get masked national ID
     public String getMaskedNationalId() {
-        if (nationalId == null || nationalId.length() < 4) return "****";
+        if (nationalId == null || nationalId.length() < 4)
+            return "****";
         return "****" + nationalId.substring(nationalId.length() - 4);
     }
 
     @Override
     public String toString() {
-        return "Guest{" +
-                "guestId=" + guestId +
-                ", fullName='" + fullName + '\'' +
-                ", phoneNumber='" + phoneNumber + '\'' +
-                ", email='" + email + '\'' +
-                ", nationalId='" + getMaskedNationalId() + '\'' +
-                ", address='" + address + '\'' +
-                ", roomNumber=" + roomNumber +
-                ", checkInDate=" + checkInDate +
-                ", checkOutDate=" + checkOutDate +
-                ", status=" + status +
-                '}';
+        if (roomNumber != null) {
+            return String.format("%s (Room %d)", fullName, roomNumber);
+        }
+        return fullName;
     }
 }

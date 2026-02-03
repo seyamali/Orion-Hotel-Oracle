@@ -15,11 +15,13 @@ import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public class GuestUI {
 
     private GuestController controller;
     private RoomController roomController;
+    private com.orionhotel.controller.BookingController bookingController;
     private TableView<Guest> table = new TableView<>();
     private ObservableList<Guest> data = FXCollections.observableArrayList();
     private TextField searchField = new TextField();
@@ -29,20 +31,9 @@ public class GuestUI {
     public GuestUI() {
         roomController = new RoomController();
         controller = new GuestController(roomController);
+        bookingController = new com.orionhotel.controller.BookingController(roomController);
 
-        // Initialize some sample rooms if none exist
-        if (roomController.getAllRooms().isEmpty()) {
-            roomController.addRoom(new Room(101, "Single"));
-            roomController.addRoom(new Room(102, "Double"));
-            roomController.addRoom(new Room(103, "Suite"));
-            roomController.addRoom(new Room(104, "Single"));
-        }
-
-        // Sample guests if none exist
-        if (controller.getAllGuests().isEmpty()) {
-            controller.addGuest(new Guest(1, "John Doe", "123-456-7890", "john@example.com", "123456789", "123 Main St"));
-            controller.addGuest(new Guest(2, "Jane Smith", "987-654-3210", "jane@example.com", "987654321", "456 Oak Ave"));
-        }
+        // No sample data - User will input data manually
 
         initializeUI();
     }
@@ -98,8 +89,16 @@ public class GuestUI {
         statusCol.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
                 cellData.getValue().getStatus().toString()));
 
-        table.getColumns().addAll(idCol, nameCol, phoneCol, emailCol, idMaskedCol, addressCol,
-                roomCol, checkInCol, checkOutCol, statusCol);
+        table.getColumns().add(idCol);
+        table.getColumns().add(nameCol);
+        table.getColumns().add(phoneCol);
+        table.getColumns().add(emailCol);
+        table.getColumns().add(idMaskedCol);
+        table.getColumns().add(addressCol);
+        table.getColumns().add(roomCol);
+        table.getColumns().add(checkInCol);
+        table.getColumns().add(checkOutCol);
+        table.getColumns().add(statusCol);
 
         // Buttons
         Button addBtn = new Button("Add Guest");
@@ -222,50 +221,54 @@ public class GuestUI {
                 return;
             }
 
-            // Show available rooms
-            List<Room> availableRooms = roomController.getAvailableRooms();
-            if (availableRooms.isEmpty()) {
-                showAlert("No available rooms.");
-                return;
-            }
+            DatePicker checkInDatePicker = new DatePicker(LocalDate.now());
+            DatePicker checkOutDatePicker = new DatePicker(LocalDate.now().plusDays(1));
 
-            ChoiceDialog<Room> roomDialog = new ChoiceDialog<>(availableRooms.get(0), availableRooms);
-            roomDialog.setTitle("Select Room");
-            roomDialog.setHeaderText("Choose a room for check-in:");
-            roomDialog.setContentText("Available rooms:");
+            Dialog<Void> dateDialog = new Dialog<>();
+            dateDialog.setTitle("Check-In Dates");
+            dateDialog.setHeaderText("Select check-in and check-out dates:");
 
-            roomDialog.showAndWait().ifPresent(room -> {
-                DatePicker checkInDatePicker = new DatePicker(LocalDate.now());
-                DatePicker checkOutDatePicker = new DatePicker(LocalDate.now().plusDays(1));
+            GridPane dateGrid = new GridPane();
+            dateGrid.setHgap(10);
+            dateGrid.setVgap(10);
+            dateGrid.setPadding(new Insets(20, 150, 10, 10));
+            dateGrid.add(new Label("Check-In Date:"), 0, 0);
+            dateGrid.add(checkInDatePicker, 1, 0);
+            dateGrid.add(new Label("Check-Out Date:"), 0, 1);
+            dateGrid.add(checkOutDatePicker, 1, 1);
 
-                Dialog<Void> dateDialog = new Dialog<>();
-                dateDialog.setTitle("Check-In Dates");
-                dateDialog.setHeaderText("Select check-in and check-out dates:");
+            dateDialog.getDialogPane().setContent(dateGrid);
+            dateDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
-                GridPane dateGrid = new GridPane();
-                dateGrid.setHgap(10);
-                dateGrid.setVgap(10);
-                dateGrid.setPadding(new Insets(20, 150, 10, 10));
-                dateGrid.add(new Label("Check-In Date:"), 0, 0);
-                dateGrid.add(checkInDatePicker, 1, 0);
-                dateGrid.add(new Label("Check-Out Date:"), 0, 1);
-                dateGrid.add(checkOutDatePicker, 1, 1);
+            Optional<Void> result = dateDialog.showAndWait();
+            if (result.isPresent()) {
+                LocalDate checkIn = checkInDatePicker.getValue();
+                LocalDate checkOut = checkOutDatePicker.getValue();
+                if (checkIn == null || checkOut == null || checkOut.isBefore(checkIn)) {
+                    showAlert("Invalid dates selected.");
+                    return;
+                }
 
-                dateDialog.getDialogPane().setContent(dateGrid);
-                dateDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+                // Show available rooms for THESE dates
+                List<Room> availableRooms = roomController.getAvailableRooms().stream()
+                        .filter(r -> bookingController.isSpecificRoomAvailable(r.getRoomNumber(), checkIn, checkOut))
+                        .toList();
 
-                dateDialog.showAndWait().ifPresent(result -> {
-                    LocalDate checkIn = checkInDatePicker.getValue();
-                    LocalDate checkOut = checkOutDatePicker.getValue();
-                    if (checkIn != null && checkOut != null && !checkOut.isBefore(checkIn)) {
-                        // For now, just check in with current date - dates are set automatically
-                        controller.checkInGuest(selected.getGuestId(), room.getRoomNumber());
-                        refreshTable();
-                    } else {
-                        showAlert("Invalid dates selected.");
-                    }
+                if (availableRooms.isEmpty()) {
+                    showAlert("No available rooms for selected dates.");
+                    return;
+                }
+
+                ChoiceDialog<Room> roomDialog = new ChoiceDialog<>(availableRooms.get(0), availableRooms);
+                roomDialog.setTitle("Check-In: Room Selection");
+                roomDialog.setHeaderText("Selecting Available Room for " + selected.getFullName());
+                roomDialog.setContentText("Select Room (Type - Price):");
+
+                roomDialog.showAndWait().ifPresent(room -> {
+                    controller.checkInGuest(selected.getGuestId(), room.getRoomNumber());
+                    refreshTable();
                 });
-            });
+            }
         } else {
             showAlert("Please select a guest to check in.");
         }
@@ -296,24 +299,8 @@ public class GuestUI {
     private void handleViewHistory() {
         Guest selected = table.getSelectionModel().getSelectedItem();
         if (selected != null) {
-            List<GuestController.PastStay> history = controller.getGuestHistory(selected.getGuestId());
-
-            Alert historyAlert = new Alert(Alert.AlertType.INFORMATION);
-            historyAlert.setTitle("Stay History - " + selected.getFullName());
-            historyAlert.setHeaderText("Previous stays:");
-
-            if (history.isEmpty()) {
-                historyAlert.setContentText("No previous stays recorded.");
-            } else {
-                StringBuilder sb = new StringBuilder();
-                for (GuestController.PastStay record : history) {
-                    sb.append(String.format("Room %d: %s to %s\n",
-                            record.roomNumber, record.checkInDate, record.checkOutDate));
-                }
-                historyAlert.setContentText(sb.toString());
-            }
-
-            historyAlert.showAndWait();
+            // History feature temporarily disabled during SQL migration
+            showAlert("History feature coming soon with SQL integration.");
         } else {
             showAlert("Please select a guest to view history.");
         }
@@ -339,8 +326,13 @@ public class GuestUI {
         TableColumn<Guest, LocalDate> cCheckOutCol = new TableColumn<>("Check-Out");
         cCheckOutCol.setCellValueFactory(new PropertyValueFactory<>("checkOutDate"));
 
-        currentTable.getColumns().addAll(cNameCol, cRoomCol, cCheckInCol, cCheckOutCol);
-        currentTable.getItems().setAll(controller.getCheckedInGuests());
+        currentTable.getColumns().add(cNameCol);
+        currentTable.getColumns().add(cRoomCol);
+        currentTable.getColumns().add(cCheckInCol);
+        currentTable.getColumns().add(cCheckOutCol);
+
+        List<Guest> checkedIn = controller.getGuestsByStatus(Guest.GuestStatus.CHECKED_IN);
+        currentTable.getItems().setAll(checkedIn);
         currentBox.getChildren().add(currentTable);
         currentTab.setContent(currentBox);
 
@@ -350,28 +342,19 @@ public class GuestUI {
         occupancyBox.setPadding(new Insets(10));
 
         Label totalRoomsLabel = new Label("Total Rooms: " + roomController.getAllRooms().size());
-        Label occupiedRoomsLabel = new Label("Occupied Rooms: " + controller.getCheckedInGuests().size());
-        Label availableRoomsLabel = new Label("Available Rooms: " +
-                (roomController.getAllRooms().size() - controller.getCheckedInGuests().size()));
-        double occupancyRate = (double) controller.getCheckedInGuests().size() / roomController.getAllRooms().size() * 100;
+        Label occupiedRoomsLabel = new Label("Occupied Rooms: " + checkedIn.size());
+
+        int totalRooms = roomController.getAllRooms().size();
+        int occupied = checkedIn.size();
+        Label availableRoomsLabel = new Label("Available Rooms: " + (totalRooms - occupied));
+
+        double occupancyRate = totalRooms > 0 ? (double) occupied / totalRooms * 100 : 0;
         Label occupancyRateLabel = new Label(String.format("Occupancy Rate: %.1f%%", occupancyRate));
 
         occupancyBox.getChildren().addAll(totalRoomsLabel, occupiedRoomsLabel, availableRoomsLabel, occupancyRateLabel);
         occupancyTab.setContent(occupancyBox);
 
-        // Revenue report (simplified)
-        Tab revenueTab = new Tab("Revenue Report");
-        VBox revenueBox = new VBox(10);
-        revenueBox.setPadding(new Insets(10));
-
-        // This would be more complex in a real system with pricing
-        Label totalStaysLabel = new Label("Total Completed Stays: " + controller.getGuestHistory(0).size()); // Simplified
-        Label avgStayLabel = new Label("Average Stay Duration: N/A"); // Would need calculation
-
-        revenueBox.getChildren().addAll(totalStaysLabel, avgStayLabel);
-        revenueTab.setContent(revenueBox);
-
-        tabPane.getTabs().addAll(currentTab, occupancyTab, revenueTab);
+        tabPane.getTabs().addAll(currentTab, occupancyTab);
 
         Alert dialog = new Alert(Alert.AlertType.INFORMATION);
         dialog.setTitle("Guest Reports");

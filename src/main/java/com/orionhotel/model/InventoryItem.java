@@ -12,6 +12,9 @@ public class InventoryItem implements Serializable {
     private int minimumThreshold;
     private String supplier;
 
+    public InventoryItem() {
+    }
+
     public InventoryItem(int itemId, String itemName, String category,
             int quantity, int minimumThreshold, String supplier) {
         this.itemId = itemId;

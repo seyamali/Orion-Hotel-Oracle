@@ -24,14 +24,12 @@ public class InventoryUI {
         initializeUI();
     }
 
+    public void setNotificationController(com.orionhotel.controller.NotificationController nc) {
+        controller.setNotificationController(nc);
+    }
+
     private void initializeUI() {
-        // Sample data matching new requirements
-        if (controller.getAllItems().isEmpty()) {
-            controller.addItem(new InventoryItem(1, "Soap", "Guest Amenities", 100, 20, "Supplier A"));
-            controller.addItem(new InventoryItem(2, "Towel", "Housekeeping Supplies", 50, 10, "Supplier B"));
-            controller
-                    .addItem(new InventoryItem(3, "Cleaning Liquid", "Maintenance Tools & Parts", 5, 10, "Supplier C"));
-        }
+        // Sample data removed. User starts fresh or uses SQL seeded data.
 
         refreshTable();
 
@@ -103,7 +101,12 @@ public class InventoryUI {
             return row;
         });
 
-        table.getColumns().addAll(idCol, nameCol, catCol, qtyCol, thresholdCol, supplierCol);
+        table.getColumns().add(idCol);
+        table.getColumns().add(nameCol);
+        table.getColumns().add(catCol);
+        table.getColumns().add(qtyCol);
+        table.getColumns().add(thresholdCol);
+        table.getColumns().add(supplierCol);
         table.setItems(data);
 
         // Buttons
@@ -430,4 +433,3 @@ public class InventoryUI {
         }
     }
 }
-
